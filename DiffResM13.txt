@@ -1,0 +1,402 @@
+#DiffRes
+#
+#Differential resultants package for Maple 13
+#
+#by Sonia L. Rueda
+#Universidad Politecnica de Madrid
+#
+#Supported by the Spanish "Ministerio de Educación y Ciencia" under the 
+#Project MTM2005-08690-C02-01
+#
+#A package of functions to compute the differential resultant of 
+#G. Carra'Ferro defined in [1] and the linear complete differential 
+#(homogeneous) resultant defined in [2].
+#
+#[1] Carra'Ferro, G., A resultant theory for ordinary algebraic 
+#differential equations, Lecture Notes in Computer Science, 1255.
+#Applied Algebra, Algebraic Algorithms and Error-Correcting Codes. 
+#Proceedings, (1997), 55-65.
+#
+#[2] Rueda, S.L. and Sendra J.R., Linear Complete Differential Resultants
+#and the Implicitization of Linear DPPEs. Journal of Symbolic Computation 45 (2010),324-341. 
+#
+#[3] Rueda, S.L., On the computation of differential resultants. (2010) To appear in Modern Mathematical tools
+#and techniques in capturing complexity. Springer series in synergetics. 
+
+
+########################################################################
+#Functions to change notation.
+
+Ch1:=proc(
+	fun,#function of t 
+	N,#maximum order of deriavation
+	vars,#list of differential variables if non write []
+	pars #list of differential parameters
+	)  
+#Given a function fun of t Ch1 returns a differential polynomial 
+#in the differential parameters pars
+
+local n,m,i,k,j;
+	m:=nops(pars);
+	n:=nops(vars);
+	subs({seq(vars[i](t)=vars[i],i=1..n),
+	      seq(seq(diff(vars[i](t),t$k)=cat(vars[i],k),k=1..N),i=1..n),
+	      seq(pars[j](t)=pars[j],j=1..m), 
+              seq(seq(diff(pars[j](t),t$k)=cat(pars[j],k),k=1..N),j=1..m)},
+	      fun);
+end;
+
+Ch2:=proc(
+	fun,#differential polynomial
+	N,#maximum order of deriavation
+	vars,#list of differential variables if non write []
+	pars #list of differential parameters
+	)  
+#Given a differential polynomial fun in the differential 
+#parameters pars Ch2 returns a function of t
+
+local m,n,i,k,j;
+	m:=nops(pars);
+	n:=nops(vars);
+	subs({seq(vars[i]=vars[i](t),i=1..n),
+              seq(seq(vars[i][k]=diff(vars[i](t),t$k),k=1..N),i=1..n),
+	      seq(pars[j]=pars[j](t),j=1..m), 
+              seq(seq(pars[j][k]=diff(pars[j](t),t$k),k=1..N),j=1..m)},
+	      fun);
+end;
+
+Ch3:=proc(
+	fun,#differential polynomial
+	N,#maximum order of deriavation
+	pars #list of differential parameters
+	)  
+#Given a differential polynomial fun in the differential 
+#parameters pars Ch2 returns a function of t
+
+local m,j,k;
+	m:=nops(pars);
+	subs({
+              seq(seq(pars[j][k]=cat(pars[j],k),k=1..N),j=1..m)
+	     },
+	      fun);
+end;
+########################################################################
+#Functions to order the monomials indexing the columns of the matrix
+#M0, [1] Definition 6.
+
+alg_pars:=proc(
+	pars,#list of differential parameters
+	OO #list of orders
+	) 
+#Given a set of differential polynomials of orders OO in the differential
+#parameters pars then alg_pars returns the list of parameters
+#of the polynomials in the differential resultant
+
+local Y,m,N,j,i;
+	m:=nops(pars);
+	N:=sum(OO[i],i=1..m+1);
+	Y:=seq(pars[j],j=1..m),seq(seq(cat(pars[j],i),j=1..m),i=1..N);
+RETURN(Y);
+end;
+
+lc_gamma:=proc(
+		diffpols, #list of n differential polynomials
+		OO #list of orders of diffpols
+	       ) 
+#It returns the completeness index of diffpols as defined in [2], Section 5.
+
+local n,m,j,i,pp,ff,k,dd,gam,gamm,result,kk; 
+
+	n:=nops(diffpols);m:=nops(pars);
+	result:=NULL;
+	for j from 1 to m do 
+		gam:=NULL; 
+		for i from 1 to n do 
+			pp:=pars[j];
+			ff:=subs({pp=1,seq(pp[k]=oo^k,k=1..OO[i])},diffpols[i]);
+			dd:=degree(ff,oo);
+			gam:=gam,dd;
+		od;
+		gamm[j]:=min(seq(OO[i]-gam[i],i=1..n));
+		result:=result,gamm[j];
+	od;
+	RETURN([result]);
+end;
+
+alg_pars_gam:=proc(
+	diffpols,#list of n differential polynomials in 
+		 #differential parameters pars and differential variables vars
+	pars,#list of differential parameters
+	OO #list of orders
+	) 
+#Given a set of differential polynomials of orders OO in the differential
+#parameters pars then alg_pars returns the list of parameters
+#of the polynomials in the differential resultant
+
+local Y,m,N,j, lc_gam,gam_list,k,i;
+	m:=nops(pars);
+	N:=sum(OO[i],i=1..m+1);
+	gam_list:=lc_gamma(diffpols,OO);
+	lc_gam:=sum(gam_list[j],j=1..m); 
+	Y:=NULL;
+	for k from 0 to N-lc_gam do
+		for j from 1 to m do
+			if k<=N-lc_gam-gam_list[j] then
+				if k=0 then Y:=Y,pars[j];
+				else Y:=Y,cat(pars[j],k); 
+				fi;
+			fi;
+		od;
+	od;
+RETURN(Y);
+end;
+
+monomials:=proc(
+ 		Y,		
+ 		N,#sum of the entries in OO
+  		D_,#possitive integer in [1], page 57
+  		m #numer ot differential parameters
+  		) 
+  #Given a list of variables U it returns the ordered list of the 
+  #monomials indexing the columns of the differential resultant 
+  #matrix M0, [1] Definition 6. 
+  
+  local P,vv,i;
+
+	P:=subs(z=1,convert(map(expand,
+  	    series(1/(product((1-Y[i]*z),i=1..m*N+m)),z,D_+1)),polynom));
+	vv:=sort(P, order=tdeg(op(Y)), ascending)-1;
+RETURN(ListTools[Reverse]([1,op(vv)]));
+end;
+
+
+########################################################################
+#Functions to construct the matrix M0 and the matrix A defined in [1].
+
+coeficientes:=proc(
+		  fun,#differential polynomial 
+	 	  var,#list of monomials indexing the columns of M0
+	          L #size of the differential resutlant matrix M0
+		  ) 
+#Returns the lists of coefficients of fun in decreasing order with 
+#respect to the order of the monomials in var.
+
+local N,mon,CM,cF,mF,k,result,j,tt;
+	CM:=[coeffs(fun,var,'tt')]; 
+	mF:=tt;
+	if member(var[1], [mF],'k') then 
+		result:=matrix([[CM[k]]]); 
+	else   
+		result:=matrix([[0]]); 
+	fi;                                        
+	for j from 2 to L do 
+		if member(var[j], [mF],'k') then 
+			result:=linalg[concat](result,[[CM[k]]]); 
+		else 
+			result:=linalg[concat](result,[[0]]); 
+		fi; 
+	od; 
+RETURN(result); 
+end;  
+
+
+
+################################################################################
+#Function returning the differential resultant matrices M0 and A defined in [1].
+
+diffres_matrices:=proc(
+		       diffpols,#list of n differential polynomials in 
+		       #differential parameters pars and differential variables vars
+		       pars,#list of n-1 differential parameters in increasing order
+		       OO,#list of orders of diffpols
+		       vars,#list of differential variables if non write []
+		       Y #orderly ranking on the differential parameters.
+		       ) 
+#Computes the differential resultant matrices M0 and A for the given ranking Y.
+#If diffpols are linear then A=1.
+#If diffpols are nonlinear det(A) might be 0. 
+
+local n,m,N,d,FF,D_,L,var,i,ii,j,jj,YY,MD,PPS,PS,MDnew,l,MDtemp,MM,k,cc,count,rr,NN,rrr,ccc,M0,A;
+	n:=nops(pars)+1;
+	m:=n-1; #m is the number of independent variables. 
+	YY:=[op(Y),y];
+if m=1 and OO=[0,0] then
+	M0:=sylvester(diffpols[1],diffpols[2],pars[1]);
+	A:=1;
+else
+	N:=sum(OO[i],i=1..m+1); #sum of the entries in OO
+	d:=[seq(degree(Ch3(diffpols[i],N,pars),{op(Y)}),i=1..n)]; #d is a list of degrees of diffpols
+	FF:=[seq(Ch2(diffpols[i],N,vars,pars),i=1..n)]; #FF list of functions of t
+	D_:=1+sum((N-OO[j]+1)*(d[j]-1),j=1..m+1); #possitive integers in [1], page 57
+	L:=combinat[binomial](m*N+m+D_,m*N+m); #size of the numerator matrix M0
+	print(`M0 is an LxL matrix with L=`);print(L);
+
+	var:=monomials(Y,N,D_,m);
+	print(`List of variables indexing the columns of M0.`);						
+print(var):
+	MD:=[seq(var[i]*y^(D_-degree(var[i],Y)),i=1..nops(var))];
+
+	PPS:=NULL;
+	for i from 1 to n do
+		if N-OO[i]>=1 then
+			PPS:=PPS,op(ListTools[Reverse]([seq(diff(FF[i],t$j),j=1..N-OO[i])])),FF[i];
+		else
+			PPS:=PPS,FF[i];
+		fi;
+	od;
+	PPS:=[PPS];
+	PS:=[seq(Ch1(PPS[i],N,pars,vars),i=1..nops(PPS))];
+
+#Computation of M0
+	MDnew:=MD:
+	for l from 1 to nops(PS) do
+		M||l:=NULL:
+		MDtemp:=NULL:
+		for i from 1 to nops(MDnew) do  
+			if Groebner[Reduce](MDnew[i],[YY[l]^degree(PS[l],Y)],
+					tdeg(op(ListTools[Reverse](YY))))=0 then 
+				M||l:=M||l,MDnew[i]/YY[l]^degree(PS[l],Y);
+			else 
+				MDtemp:=MDtemp,MDnew[i];
+			fi;
+		od;
+		MDnew:=[MDtemp]:
+	od:
+	MM:=[seq(subs(y=1,[M||l]),l=1..nops(PS))];
+	for l from 1 to nops(MM) do  
+		MF||l:=coeficientes(expand(MM[l][1]*PS[l]),var,L); 
+		for k from 2 to nops(MM[l]) do 
+			MF||l:=linalg[stackmatrix](MF||l,coeficientes(expand(MM[l][k]*PS[l]),var,L)); 
+		od; 
+	od; 
+	
+	M0:=MF||1:
+	for l from 2 to nops(MM) do 
+		M0:=linalg[stackmatrix](M0,MF||l);
+	od:
+
+#Computation of the submatrix A of M0
+
+	if product(d[ii],ii=1..n)=1 then #if the diffpols are linear we return A=1
+		A:=1;
+	else	
+		cc:=NULL; 
+		for i from 1 to nops(MD) do 
+			count:=0: 
+			for l from 1 to nops(YY) do 
+
+				if Groebner[Reduce](MD[i],[YY[l]^degree(PS[l],Y)],
+					tdeg(op(YY)))=0 then 
+					count:=count+1;
+				fi; 
+			od;
+			if count=1 then 
+				cc:=cc,i;
+			fi;
+		od:
+		rr:=NULL; 
+		NN:=0; 
+		for i from 1 to nops(MM) do 
+			for k from 1 to nops(MM[i]) do 
+				count:=0: 
+				for l from 1 to nops(YY) do 
+					if Groebner[Reduce]([M||i][k]*YY[i]^degree(PS[i],Y),
+						[YY[l]^degree(PS[l],Y)],tdeg(op(YY)))=0 then 
+						count:=count+1;
+					fi; 
+				od;
+				count;
+				if count=1 then 
+					rr:=rr,NN+k;
+				fi;
+			od;
+			NN:=NN+nops(MM[i]);
+		od;
+		rrr:={seq(i,i=1..L)}minus{rr}:rrr:=[op(rrr)];
+		ccc:={seq(i,i=1..L)}minus{cc}:ccc:=[op(ccc)];
+		A:=linalg[submatrix](M0,rrr,ccc);
+	fi;
+fi;
+
+RETURN([M0,A]);
+end;
+
+lcdiffres_matrices:=proc(
+		       diffpols,#list of n differential polynomials in 
+		       #differential parameters pars and differential variables vars
+		       pars,#list of n-1 differential parameters in increasing order
+		       OO,#list of orders of diffpols
+		       vars,#list of differential variables if non write []
+		       Y #orderly ranking on the differential parameters.
+		       ) 
+#Computes the linear complete differential resultant matrix M0 and the linear complete 
+#differential homogeneous resultant matrix Mh0. It also returns the possitive integer 
+#lc_gam indicating the lack of completeness of the differential polynomials diffpols. 
+
+local n,m,N,d,FF,D_,L_gam,var,i,j,M0,Mh0,lc_gam,gam_list,PPS,PS,l,rr,cc,co,ro,ll,k;
+	n:=nops(pars)+1;
+	m:=n-1; #m is the number of independent variables. 
+
+if m=1 and OO=[0,0] then
+	M0:=sylvester(diffpols[1],diffpols[2],pars[1]);
+	Mh0:=NULL;
+	lc_gam:=0;
+else
+	N:=sum(OO[i],i=1..m+1); #sum of the entries in OO
+	d:=[seq(degree(diffpols[i],Y),i=1..n)]; #d is a list of degrees of diffpols
+	FF:=[seq(Ch2(diffpols[i],N,vars,pars),i=1..n)]; #FF list of functions of t
+	D_:=1; #possitive integers in [1], page 57
+
+	gam_list:=lc_gamma(diffpols,OO);
+	lc_gam:=sum(gam_list[i],i=1..m);
+	L_gam:=sum(N-OO[i]-lc_gam+1,i=1..n); #size of the numerator matrix M0
+	print(`M0 is an LxL matrix with L=`);print(L_gam);
+
+	var:=[op(ListTools[Reverse](Y)),1];
+	print(`List of variables indexing the columns of M0.`);						
+print(var);
+
+	PPS:=NULL;
+	for i from 1 to n do
+		if N-OO[i]-lc_gam>=1 then
+			PPS:=PPS,op(ListTools[Reverse]([seq(diff(FF[i],t$j),j=1..N-OO[i]-lc_gam)])),FF[i];
+		else
+			PPS:=FF[i];
+		fi;
+	od;
+	PPS:=[PPS];
+	PS:=[seq(Ch1(PPS[i],N,pars,vars),i=1..nops(PPS))];
+
+#Computation of M0
+	
+	for l from 1 to nops(PS) do  
+		MF||l:=coeficientes(expand(PS[l]),var,L_gam); 
+	od; 
+	
+	M0:=MF||1:
+	for l from 2 to nops(PS) do 
+		M0:=linalg[stackmatrix](M0,MF||l);
+	od:
+
+#Computation of Mh0
+	
+	co:=NULL;
+	for j from 1 to m do
+		member(cat(pars[j],N-gam_list[j]-lc_gam),var,'k');
+		co:=co,k;
+	od;
+	cc:={seq(i,i=1..L_gam-1)}minus{co};
+				
+	ro:=NULL;
+	for i from 1 to n do 
+	 	k:=0;
+		ll:=(i-1)*(N-lc_gam)-sum(OO[h],h=1..i-1)+i+k;
+		ro:=ro,ll;
+	od; 
+	rr:={seq(i,i=1..L_gam)}minus{ro};
+	 	
+	Mh0:=linalg[submatrix](M0,[op(rr)],[op(cc)]);
+
+fi;	
+RETURN([M0, Mh0,lc_gam]);
+end;
